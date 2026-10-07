@@ -1,5 +1,6 @@
 services:
   app:
+    image: ${APP_IMAGE:-zaraza-app:local}
     build: .
     restart: unless-stopped
     init: true
