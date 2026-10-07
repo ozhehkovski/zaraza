@@ -1,0 +1,101 @@
+# Telegram Price Tracker
+
+Self-hosted Telegram-бот на TypeScript для цены и наличия размеров Zara Poland. Польский интерфейс, PostgreSQL, grammY, Drizzle, один планировщик, история только при изменениях, постоянная очередь уведомлений.
+
+## Запуск
+
+Создайте бота через [@BotFather](https://t.me/BotFather): `/newbot`, затем скопируйте токен.
+
+```sh
+cp .env.example .env
+# заполните TELEGRAM_BOT_TOKEN и POSTGRES_PASSWORD
+# настройте ZARA_TRANSPORT / сессию при блокировке HTTP
+
+docker compose up -d --build
+```
+
+Миграции применяются при старте автоматически. База сохраняется в `postgres_data`. `docker compose restart app` сохраняет подписки и возобновляет проверку. Не используйте `docker compose down -v`, если нужно сохранить данные.
+
+Проверка:
+
+```sh
+curl http://localhost:8080/health
+docker compose logs --tail=100 app
+```
+
+Зайдите в бота, нажмите Start, отправьте ссылку на товар вида `https://www.zara.com/pl/pl/…-p….html?v1=…`. `v1` выбирает цвет. Ссылки без `v1` разрешаются через JSON карточки. Выберите размер и правило: любое снижение, целевая цена, наличие, цена + наличие. Повторное добавление того же размера меняет правило существующей подписки. Порог срабатывает при переходе из цены выше цели в цену не выше цели. Если цель уже достигнута при создании подписки, бот явно сообщает об этом. Цена + наличие означает независимые уведомления для обоих изменений. Для наличия отправляются restock и out-of-stock события.
+
+Команды: `/start`, `/help`, `/watch`, `/list`, `/history`, `/settings`. `/list` имеет страницы по 10 товаров; история показывает последние 30 изменений и минимум за всё время. Бот работает в личных чатах.
+
+## Настройки
+
+- `TELEGRAM_BOT_TOKEN`: только ENV, никогда не коммитить.
+- `DATABASE_URL`: локальная разработка; Compose автоматически использует postgres внутри сети.
+- `POSTGRES_PASSWORD`: обязательный пароль базы. Используйте случайный hex-пароль: он безопасно подставляется в DATABASE_URL без URL-кодирования.
+- `CHECK_INTERVAL_SECONDS=60`: интервал проверки уникального товара (минимум 10 s).
+- `MAX_CONCURRENT_REQUESTS=10`: параллельные проверки.
+- `REQUEST_TIMEOUT_MS=10000`: timeout одного запроса.
+- `ZARA_REQUESTS_PER_SECOND=5`: общий предел запросов к магазину.
+- `ZARA_TRANSPORT=browser`: проверенный для этого окружения режим. Один Chromium на сервис, страницы переиспользуются и проверяются параллельно. `http` использует reuse соединений, если выбранная сеть допускает прямые запросы.
+- `ZARA_MAX_BROWSER_PAGES=2`: предел одновременно открытых страниц Chromium, отдельный от concurrency мониторинга. Проверен в Docker на 20 товарах; уменьшает расход памяти и задержки при запуске браузера.
+- `ZARA_DATA_SOURCE=page`: JSON `window.zara.viewPayload` из HTML карточки. `api` использует products-details endpoint, если он доступен.
+- `ZARA_COOKIE`: опциональная принадлежащая вам сессия Zara; не публикуйте `.env`.
+- `ZARA_PROXY_URL`: опциональный ваш proxy. Нужен только если выбранная сеть блокируется Zara.
+- `ZARA_BROWSER_HEADLESS`: `false` для обычного Chromium (в Docker виртуальный дисплей Xvfb); `true` может блокироваться Zara.
+- `ZARA_BROWSER_EXECUTABLE`: опциональный путь к браузеру для локального запуска.
+- `PORT=8080`, `LOG_LEVEL=info`.
+
+## Zara и ограничения
+
+Zara API не является публичным стабильным API. В исследовании прямой API возвращал 403; обычный HTTP также мог вернуть защитную страницу с HTTP 200. Успешно проверен browser + page: обычный Chromium без cookies открывает карточку, provider разбирает встроенный JSON без выполнения извлечённого JavaScript. Проверены 20 реальных товаров PL. Работоспособность конкретного VPS зависит от IP и сессии; `/health` отдельно показывает `zara.status=unchecked` до первой проверки; последняя ошибка магазина делает общий статус `degraded`. Подробности и результаты: `docs/ZARA_API.md`, `docs/live-test-results.json`.
+
+При 403 сервис приостанавливает запросы на 5 минут; при 429 учитывает Retry-After и увеличивает паузу. Для неудачных товаров применяется дополнительная задержка до часа. Проверки не заменяют наличие на `false` при ошибке или незнакомой схеме API. Последние достоверные данные сохраняются, ошибка показывается в деталях. После исправления конфигурации перезапустите app; сохранённые подписки продолжат проверяться по расписанию. Непроверенный SKU, исчезнувший из ответа, остаётся в прежнем состоянии с предупреждением.
+
+## Архитектура
+
+```text
+Telegram → Repository / PostgreSQL ← MonitoringEngine ← ProviderRegistry
+                                      ↓
+                         state + history + notification_outbox
+                                      ↓
+                         NotificationService → Telegram
+```
+
+Один товар и набор SKU проверяются для всех подписчиков. Состояние, история и уведомления обновляются одной транзакцией. Если Telegram недоступен, очередь сохраняется и повторяет доставку с backoff. Возможна повторная доставка при аварии между успешным sendMessage и записью sent_at: Telegram не поддерживает идемпотентный ключ отправки. Отключённые подписки не отправляют ожидающие уведомления. Один PostgreSQL advisory lock не допускает двух одновременно работающих экземпляров scheduler/outbox/polling на одной базе.
+
+`StoreProvider` не зависит от Telegram; добавить магазин можно реализацией `src/providers/types.ts`, зарегистрировав provider в `src/index.ts`. Цена везде целое число в минимальных единицах валюты (гроши), не float. HM placeholder не зарегистрирован и не возвращает вымышленные данные. Автопокупки и add-to-cart не реализованы; исследование в `docs/ZARA_CART.md`.
+
+## Разработка и проверки
+
+Результаты выполненных проверок: [docs/TEST_RESULTS.md](docs/TEST_RESULTS.md). В текущем Docker-развёртывании включены 20 настоящих товаров Zara PL, проверено сохранение всех подписок и продолжение мониторинга после перезапуска.
+
+Node.js 22+, Docker для PostgreSQL:
+
+```sh
+npm ci
+npx playwright install chromium # только для browser режима
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+npm run dev
+npm run build
+npm test
+```
+
+`docker-compose.dev.yml` открывает PostgreSQL только на localhost:5433. Для отдельных тестовых БД:
+
+```sh
+docker compose exec postgres createdb -U tracker tracker_integration
+docker compose exec postgres createdb -U tracker tracker_test
+npm run test:integration
+npm run test:load
+npm run test:live
+```
+
+Повторно `createdb` запускать не нужно. Интеграционный тест использует отдельную `tracker_integration`, нагрузочный — `tracker_test`; `TEST_DATABASE_URL` переопределяет адрес. Не направляйте тесты в рабочую базу. Telegram API в автоматических UX-тестах перехватывается. Отдельный live smoke-тест доставил явно помеченную симуляцию PRICE_DROP + RESTOCK единственному пользователю тестового бота; рабочая история цен не менялась. Live-тест получает настоящие Zara товары из `tests/fixtures/live-products.json` и сохраняет снимки в рабочую базу без подписок на тестовых пользователей. Его отчёт прямо отличает успешные проверки от заблокированных.
+
+## Безопасность
+
+Токен и cookies исключены из Git и Docker build context. Логи содержат только status, productId, latency и безопасные ошибки. Нет банковских или платёжных данных. `/health` опубликован только на localhost; PostgreSQL в production Compose не открыт наружу. Управление подпиской проверяет владельца по Telegram user ID. Docker не следует публиковать напрямую с незащищённой `.env`.
+
+## Развёртывание на сервере
+
+Пошаговая инструкция, перенос подписок, backup/restore и проверка запуска: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Node.js на хосте не требуется. `./scripts/deploy.sh` проверяет конфигурацию, собирает образ и ожидает healthy-состояния сервисов.

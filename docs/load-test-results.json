@@ -1,0 +1,14 @@
+{
+  "testedAt": "2026-10-07T13:53:40.543Z",
+  "users": 100,
+  "products": 200,
+  "watches": 2000,
+  "requestsPerCycle": 200,
+  "maxConcurrency": 10,
+  "baselineMs": 346,
+  "changeMs": 421,
+  "events": 2000,
+  "historyRecords": 400,
+  "totalMs": 3320,
+  "passed": true
+}

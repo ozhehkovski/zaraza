@@ -1,0 +1,150 @@
+{
+  "testedAt": "2026-10-07T08:05:35.901Z",
+  "mode": "browser",
+  "requested": 20,
+  "passed": 20,
+  "results": [
+    {
+      "url": "https://www.zara.com/pl/pl/skorzana-kurtka-bomberka-ze-stojka-p06318252.html?v1=599226858",
+      "success": true,
+      "name": "SKÓRZANA KURTKA BOMBERKA Z WYSOKIM KOŁNIERZEM",
+      "price": 55900,
+      "sizes": 5
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/krotki-anorak-techniczny-wodoodporny-i-wiatroszczelny-p01255713.html?v1=545470428",
+      "success": true,
+      "name": "KRÓTKI ANORAK Z TKANINY TECHNICZNEJ WODOODPORNY WIATROSZCZELNY",
+      "price": 21900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-ze-stojka-i-kieszeniami-p05854722.html?v1=599226737",
+      "success": true,
+      "name": "KURTKA ZE STÓJKĄ I KIESZENIAMI",
+      "price": 29900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-boucle-p04344621.html?v1=558031516",
+      "success": true,
+      "name": "ŻAKIET BOUCLÉ",
+      "price": 17900,
+      "sizes": 4
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/ocieplany-anorak-z-kapturem-z-tkaniny-hydrofobowej-i-wiatroszczelnej-p03046234.html?v1=593936006",
+      "success": true,
+      "name": "OCIEPLANY ANORAK Z KAPTUREM Z TKANINY HYDROFOBOWEJ I WIATROSZCZELNEJ",
+      "price": 17900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-bomberka-z-szerokim-ko%C5%82nierzem-p04344652.html?v1=595867806",
+      "success": true,
+      "name": "KURTKA BOMBERKA Z SZEROKIM KOŁNIERZEM",
+      "price": 21900,
+      "sizes": 3
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-bomberka-z-szerokim-ko%C5%82nierzem-p04344652.html?v1=596960515",
+      "success": true,
+      "name": "KURTKA BOMBERKA Z SZEROKIM KOŁNIERZEM",
+      "price": 21900,
+      "sizes": 3
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/miekka-kurtka-bomberka-p03046334.html?v1=597908267",
+      "success": true,
+      "name": "MIĘKKA KURTKA BOMBERKA",
+      "price": 12900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-ze-100-skory-z-paskiem-p06318257.html?v1=597387874",
+      "success": true,
+      "name": "KURTKA ZE 100% SKÓRY Z PASKIEM",
+      "price": 55900,
+      "sizes": 5
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-ze-sztucznej-skory-z-paskiem-p04341843.html?v1=545490818",
+      "success": true,
+      "name": "KURTKA ZE SZTUCZNEJ SKÓRY Z PASKIEM",
+      "price": 21900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/miekka-kurtka-bomberka-p03046334.html?v1=595698578",
+      "success": true,
+      "name": "MIĘKKA KURTKA BOMBERKA",
+      "price": 12900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-ze-sztucznego-zamszu-p04344651.html?v1=597431704",
+      "success": true,
+      "name": "KURTKA ZE SZTUCZNEGO ZAMSZU",
+      "price": 21900,
+      "sizes": 3
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-bomberka-ze-sztucznego-zamszu-p06318230.html?v1=593710603",
+      "success": true,
+      "name": "KURTKA BOMBERKA ZE SZTUCZNEGO ZAMSZU",
+      "price": 21900,
+      "sizes": 5
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-bomberka-z-szerokim-ko%C5%82nierzem-p04344652.html?v1=596860139",
+      "success": true,
+      "name": "KURTKA BOMBERKA Z SZEROKIM KOŁNIERZEM",
+      "price": 21900,
+      "sizes": 3
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-bomberka-z-szerokim-ko%C5%82nierzem-p04344652.html?v1=596860140",
+      "success": true,
+      "name": "KURTKA BOMBERKA Z SZEROKIM KOŁNIERZEM",
+      "price": 21900,
+      "sizes": 3
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/trencz-ze-sztucznej-skory-z-poduszkami-na-ramionach-p04391705.html?v1=547042372",
+      "success": true,
+      "name": "TRENCZ ZE SZTUCZNEJ SKÓRY Z PODUSZKAMI NA RAMIONACH",
+      "price": 21900,
+      "sizes": 5
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/kurtka-ze-sztucznej-skory-p04391892.html?v1=595901330",
+      "success": true,
+      "name": "KURTKA W STYLU MOTOCYKLOWYM ZE SZTUCZNEJ SKÓRY",
+      "price": 25900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/miekka-kurtka-bomberka-p03046334.html?v1=586069813",
+      "success": true,
+      "name": "MIĘKKA KURTKA BOMBERKA",
+      "price": 12900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/miekka-kurtka-bomberka-p03046334.html?v1=586069812",
+      "success": true,
+      "name": "MIĘKKA KURTKA BOMBERKA",
+      "price": 12900,
+      "sizes": 6
+    },
+    {
+      "url": "https://www.zara.com/pl/pl/miekka-kurtka-bomberka-p03046334.html?v1=587780954",
+      "success": true,
+      "name": "MIĘKKA KURTKA BOMBERKA",
+      "price": 12900,
+      "sizes": 6
+    }
+  ],
+  "dataSource": "page",
+  "executionEnvironment": "docker"
+}

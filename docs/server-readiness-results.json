@@ -1,0 +1,67 @@
+{
+  "testedAt": "2026-10-07T13:56:44.584Z",
+  "environment": "local Docker",
+  "unitTests": 50,
+  "buildPassed": true,
+  "integration": {
+    "passed": true,
+    "checks": [
+      "Telegram URL→size→target→watch",
+      "target event→outbox→Telegram message",
+      "unchanged history",
+      "history command",
+      "ownership",
+      "database reconnect",
+      "remove",
+      "restock",
+      "rotated SKU preserves watch/history without false alerts",
+      "unrelated SKU remains unknown",
+      "cancel suppresses pending notifications"
+    ],
+    "telegramCalls": 20
+  },
+  "deployScriptPassed": true,
+  "backupRestore": {
+    "passed": true,
+    "enabledWatches": 20,
+    "isolatedDatabase": true
+  },
+  "live": {
+    "watchedProducts": 20,
+    "freshWithinFiveMinutes": 20,
+    "health": {
+      "status": "ok",
+      "database": "ok",
+      "monitor": "running",
+      "telegram": "polling",
+      "lastCycle": "2026-10-07T13:56:43.673Z",
+      "zara": {
+        "status": "ok",
+        "lastSuccessAt": "2026-10-07T13:56:42.245Z",
+        "lastError": null,
+        "lastHttpStatus": 200,
+        "nextRetryAt": null
+      },
+      "failedProducts": 0
+    }
+  },
+  "load": {
+    "testedAt": "2026-10-07T13:53:40.543Z",
+    "users": 100,
+    "products": 200,
+    "watches": 2000,
+    "requestsPerCycle": 200,
+    "maxConcurrency": 10,
+    "baselineMs": 346,
+    "changeMs": 421,
+    "events": 2000,
+    "historyRecords": 400,
+    "totalMs": 3320,
+    "passed": true
+  },
+  "limitations": [
+    "Not a 24-hour soak test",
+    "Target server IP has not been tested",
+    "200-product load used mock provider"
+  ]
+}

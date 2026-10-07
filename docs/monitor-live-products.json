@@ -1,0 +1,28 @@
+{
+  "createdAt": "2026-10-07T08:06:30.429Z",
+  "products": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25
+  ],
+  "watchCount": 20,
+  "rule": "price + stock",
+  "sizePreference": "M or first available"
+}

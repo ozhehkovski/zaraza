@@ -1,0 +1,12 @@
+{
+  "testedAt": "2026-10-07T08:17:25.722Z",
+  "environment": "docker",
+  "products": 20,
+  "minSuccessfulChecks": 4,
+  "checks": 84,
+  "intervalSeconds": {
+    "min": 61,
+    "max": 89
+  },
+  "errors": 0
+}
