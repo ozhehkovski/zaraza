@@ -7,15 +7,18 @@ export function zaraUrl(raw: string): URL {
     u.port ||
     u.username ||
     u.password ||
-    !/^\/pl\/(?:pl\/)?[^/]+-p\d+\.html$/.test(u.pathname)
+    !/^\/pl\/(?:[a-z]{2}\/)?[^/]+-p\d+\.html$/.test(u.pathname)
   )
     throw new Error(
       "Wklej link produktu Zara Polska (https://www.zara.com/pl/pl/…-p….html).",
     );
-  u.hostname = "www.zara.com";
-  u.hash = "";
-  u.searchParams.delete("v2");
-  return u;
+  // Share links from the app use the UI language (/pl/en/…) and carry utm_*:
+  // normalize to one canonical PL URL so the same product is not tracked twice.
+  const slug = u.pathname.split("/").pop()!;
+  const v1 = u.searchParams.get("v1");
+  const out = new URL(`https://www.zara.com/pl/pl/${slug}`);
+  if (v1 && /^\d+$/.test(v1)) out.searchParams.set("v1", v1);
+  return out;
 }
 export function parseMoney(value: string): number {
   const s = value

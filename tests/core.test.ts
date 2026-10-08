@@ -23,9 +23,23 @@ describe("Zara parsing", () => {
     (u) => expect(zaraUrl(u).hostname).toBe("www.zara.com"),
   );
   it.each([
+    [
+      "https://www.zara.com/pl/en/flare-trousers-p04745222.html?v1=600172461&utm_campaign=productShare&utm_medium=mobile_sharing_iOS&utm_source=red_social_movil",
+      "https://www.zara.com/pl/pl/flare-trousers-p04745222.html?v1=600172461",
+    ],
+    [
+      "https://zara.com/pl/anorak-p01255713.html?v2=1#top",
+      "https://www.zara.com/pl/pl/anorak-p01255713.html",
+    ],
+    [url, url],
+  ])("normalizes share/language link %s", (u, want) =>
+    expect(zaraUrl(u).href).toBe(want),
+  );
+  it.each([
     "https://zara.com.evil.test/pl/pl/a-p123.html",
     "http://www.zara.com/pl/pl/a-p123.html",
     "https://www.zara.com/es/es/a-p123.html",
+    "https://www.zara.com/pl/en/extra/a-p123.html",
     "https://www.zara.com/pl/",
     "https://u:p@www.zara.com/pl/pl/a-p123.html",
     "https://www.zara.com:4433/pl/pl/a-p123.html",
