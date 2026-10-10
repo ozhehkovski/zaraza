@@ -69,7 +69,7 @@ try {
         {
           ...payload,
           text:
-            "🧪 TEST BOTА — symulacja powiadomienia\nTo nie jest rzeczywista obniżka ani restock.\n\n" +
+            "🧪 ТЕСТ БОТА — имитация уведомления\nЭто не реальное снижение цены и не restock.\n\n" +
             (payload as any).text,
           reply_markup: undefined,
         } as any,

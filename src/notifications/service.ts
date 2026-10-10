@@ -15,19 +15,40 @@ export type Notification = {
   currency: string;
   previous: { price: number; available: boolean };
   current: { price: number; available: boolean };
+  // Present only for all-sizes watches.
+  restocked?: string[];
+  soldOut?: string[];
+  availableSizes?: string[];
 };
 export function notificationText(n: Notification) {
   const labels: Record<string, string> = {
-    PRICE_DROP: "🔥 CENA SPADŁA",
-    TARGET_PRICE_REACHED: "🎯 CENA DOCELOWA OSIĄGNIĘTA",
-    RESTOCK: "📦 ROZMIAR ZNOWU DOSTĘPNY",
-    OUT_OF_STOCK: "📦 ROZMIAR NIEDOSTĘPNY",
+    PRICE_DROP: "🔥 ЦЕНА СНИЗИЛАСЬ",
+    TARGET_PRICE_REACHED: "🎯 ЦЕЛЕВАЯ ЦЕНА ДОСТИГНУТА",
+    RESTOCK: "📦 РАЗМЕР СНОВА В НАЛИЧИИ",
+    OUT_OF_STOCK: "📦 РАЗМЕР ЗАКОНЧИЛСЯ",
   };
   const price =
     n.previous.price !== n.current.price
       ? `${money(n.previous.price, n.currency)} → ${money(n.current.price, n.currency)}${n.current.price < n.previous.price ? `\n-${Math.round((1 - n.current.price / n.previous.price) * 100)}%` : ""}`
       : money(n.current.price, n.currency);
-  return `${n.types.map((t) => labels[t]).join("\n")}\n${n.name}\n${price}\nRozmiar: ${n.size}\nStatus: ${n.current.available ? "dostępny" : "brak"}`;
+  if (n.availableSizes) {
+    const lines = [
+      ...n.types.map((t) => labels[t]),
+      n.name,
+      price,
+      `Размер: ${n.size}`,
+    ];
+    if (n.restocked?.length)
+      lines.push(`Снова в наличии: ${n.restocked.join(", ")}`);
+    if (n.soldOut?.length) lines.push(`Закончились: ${n.soldOut.join(", ")}`);
+    lines.push(
+      n.availableSizes.length
+        ? `Сейчас в наличии: ${n.availableSizes.join(", ")}`
+        : "Сейчас нет в наличии",
+    );
+    return lines.join("\n");
+  }
+  return `${n.types.map((t) => labels[t]).join("\n")}\n${n.name}\n${price}\nРазмер: ${n.size}\nСтатус: ${n.current.available ? "в наличии" : "нет в наличии"}`;
 }
 export class NotificationService {
   private timer?: NodeJS.Timeout;
@@ -51,9 +72,9 @@ export class NotificationService {
           try {
             await this.api.sendMessage(n.telegramId, notificationText(n), {
               reply_markup: new InlineKeyboard()
-                .url("🛒 Otwórz Zara", n.url)
+                .url("🛒 Открыть Zara", n.url)
                 .row()
-                .text("❌ Zatrzymaj monitoring", `del:${n.watchId}`),
+                .text("❌ Остановить отслеживание", `del:${n.watchId}`),
             });
             await this.repo.delivered(entry.id);
             await new Promise((r) => setTimeout(r, 50));

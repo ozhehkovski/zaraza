@@ -5,7 +5,7 @@ import {
   parseMoney,
   zaraUrl,
 } from "../src/providers/zara/parser.js";
-import { events } from "../src/monitor/rules.js";
+import { allSizesEvents, events } from "../src/monitor/rules.js";
 import { ZaraProvider } from "../src/providers/zara/ZaraProvider.js";
 import { ProviderRegistry } from "../src/providers/types.js";
 import { MonitoringEngine, concurrent } from "../src/monitor/engine.js";
@@ -148,6 +148,90 @@ describe("notification rules", () => {
         current: { price: 19900, available: true },
       }),
     ).toContain("-33%"));
+});
+describe("all-sizes rules", () => {
+  const all = { watchPrice: true, watchStock: true, targetPrice: null };
+  const sizes = (prices: number[], stock: boolean[]) =>
+    ["S", "M", "L"].map((size, i) => ({
+      size,
+      price: prices[i],
+      available: stock[i],
+    }));
+  const changes = (
+    before: ReturnType<typeof sizes>,
+    after: ReturnType<typeof sizes>,
+  ) =>
+    after.map((a, i) => ({
+      size: a.size,
+      previous: { price: before[i].price, available: before[i].available },
+      current: { price: a.price, available: a.available },
+    }));
+  it("emits one combined event for a price drop on every size", () => {
+    const e = allSizesEvents(
+      changes(
+        sizes([29900, 29900, 29900], [true, false, true]),
+        sizes([19900, 19900, 19900], [true, true, true]),
+      ),
+      all,
+    );
+    expect(e).toMatchObject({
+      types: ["PRICE_DROP", "RESTOCK"],
+      previous: { price: 29900 },
+      current: { price: 19900 },
+      restocked: ["M"],
+      soldOut: [],
+      availableSizes: ["S", "M", "L"],
+    });
+  });
+  it("reports sold-out sizes and ignores price when only stock is watched", () => {
+    const e = allSizesEvents(
+      changes(
+        sizes([29900, 29900, 29900], [true, true, false]),
+        sizes([19900, 19900, 19900], [false, true, false]),
+      ),
+      { ...all, watchPrice: false },
+    );
+    expect(e).toMatchObject({ types: ["OUT_OF_STOCK"], soldOut: ["S"] });
+  });
+  it("uses the lowest size price for target crossing", () => {
+    const e = allSizesEvents(
+      changes(
+        sizes([29900, 29900, 29900], [true, true, true]),
+        sizes([29900, 18900, 29900], [true, true, true]),
+      ),
+      { ...all, watchStock: false, targetPrice: 19900 },
+    );
+    expect(e?.types).toEqual(["TARGET_PRICE_REACHED"]);
+  });
+  it("is silent on first snapshot and unchanged state", () => {
+    const s = sizes([29900, 29900, 29900], [true, false, true]);
+    expect(
+      allSizesEvents(
+        s.map((c) => ({ size: c.size, previous: undefined, current: c })),
+        all,
+      ),
+    ).toBeNull();
+    expect(allSizesEvents(changes(s, s), all)).toBeNull();
+  });
+  it("formats an all-sizes notification in Russian", () => {
+    const text = notificationText({
+      types: ["RESTOCK"],
+      telegramId: 1,
+      watchId: 1,
+      name: "Куртка",
+      url,
+      size: "все размеры",
+      currency: "PLN",
+      previous: { price: 19900, available: false },
+      current: { price: 19900, available: true },
+      restocked: ["M", "L"],
+      soldOut: [],
+      availableSizes: ["M", "L"],
+    });
+    expect(text).toContain("РАЗМЕР СНОВА В НАЛИЧИИ");
+    expect(text).toContain("Снова в наличии: M, L");
+    expect(text).toContain("Сейчас в наличии: M, L");
+  });
 });
 describe("deduplication and scheduling", () => {
   it("coalesces fifty simultaneous same-product requests", async () => {

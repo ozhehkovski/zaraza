@@ -10,7 +10,7 @@ export function zaraUrl(raw: string): URL {
     !/^\/pl\/(?:[a-z]{2}\/)?[^/]+-p\d+\.html$/.test(u.pathname)
   )
     throw new Error(
-      "Wklej link produktu Zara Polska (https://www.zara.com/pl/pl/…-p….html).",
+      "Вставьте ссылку на товар Zara Польша (https://www.zara.com/pl/pl/…-p….html).",
     );
   // Share links from the app use the UI language (/pl/en/…) and carry utm_*:
   // normalize to one canonical PL URL so the same product is not tracked twice.
@@ -26,10 +26,10 @@ export function parseMoney(value: string): number {
     .replace(/\s|PLN|zł/gi, "")
     .replace(",", ".");
   if (!/^\d+(\.\d{1,2})?$/.test(s))
-    throw new Error("Podaj dodatnią cenę, np. 199,99.");
+    throw new Error("Укажите положительную цену, например 199,99.");
   const n = Math.round(Number(s) * 100);
   if (!Number.isSafeInteger(n) || n <= 0 || n > 100000000)
-    throw new Error("Nieprawidłowa cena.");
+    throw new Error("Некорректная цена.");
   return n;
 }
 export function parseProduct(raw: any, url: string, id?: string): Product {
