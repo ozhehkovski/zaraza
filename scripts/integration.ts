@@ -142,7 +142,7 @@ try {
     responses.some(
       (r) =>
         r.method === "sendMessage" &&
-        String(r.payload.text).includes("CENA DOCELOWA"),
+        String(r.payload.text).includes("ЦЕЛЕВАЯ ЦЕНА"),
     ),
   );
   const countBefore = (await db.execute(
@@ -156,7 +156,7 @@ try {
   await message("/list");
   await callback(`hist:${watched[0].watch.id}`);
   assert(
-    responses.some((r) => String(r.payload.text).includes("Najniższa cena")),
+    responses.some((r) => String(r.payload.text).includes("Минимальная цена")),
   );
   await callback(`del:${watched[0].watch.id}`, 90000002);
   assert.equal((await repo.list(u.id)).length, 1);
@@ -202,7 +202,7 @@ try {
   const afterRotation = (await repo.list(u.id))[0];
   assert.equal(afterRotation.watch.variantId, currentWatch.watch.variantId);
   assert.equal(
-    afterRotation.variant.externalVariantId,
+    afterRotation.variant!.externalVariantId,
     m.variant.externalVariantId,
   );
   const historyAfterRotation = await repo.priceHistory(
@@ -235,6 +235,67 @@ try {
   const sent = responses.length;
   await notifier.tick();
   assert.equal(responses.length, sent);
+  // All-sizes watch: one row per product, one combined notification per check.
+  await repo.apply(p.id, product, 60);
+  await message(url);
+  await callback(`size:${p.id}:all`);
+  await callback("rule:all:both");
+  const all = await repo.list(u.id);
+  assert.equal(all.length, 1);
+  assert.equal(all[0].watch.variantId, null);
+  assert.equal(all[0].size, "все размеры");
+  assert.deepEqual(
+    all[0].availableSizes,
+    product.variants.filter((v) => v.available).map((v) => v.size),
+  );
+  await message(url);
+  await callback(`size:${p.id}:all`);
+  await callback("rule:all:stock");
+  const reAdded = await repo.list(u.id);
+  assert.equal(reAdded.length, 1);
+  assert.equal(reAdded[0].watch.watchPrice, false);
+  // Draft is consumed by activation: a stale button must not change the rule.
+  await callback(`size:${p.id}:all`);
+  assert.equal((await repo.list(u.id))[0].watch.watchPrice, false);
+  await message(url);
+  await callback(`size:${p.id}:all`);
+  await callback("rule:all:both");
+  await notifier.tick();
+  const beforeAll = responses.length;
+  const restockedAll = {
+    ...product,
+    currentPrice: 15900,
+    variants: product.variants.map((v) => ({
+      ...v,
+      price: 15900,
+      available: true,
+    })),
+  };
+  await repo.apply(p.id, restockedAll, 60);
+  const allPending = (await repo.pending()).filter(
+    (r) => r.entry.watchId === all[0].watch.id,
+  );
+  assert.equal(allPending.length, 1);
+  assert.deepEqual((allPending[0].entry.payload as any).types, [
+    "PRICE_DROP",
+    "RESTOCK",
+  ]);
+  await notifier.tick();
+  const allMessage = responses
+    .slice(beforeAll)
+    .find((r) => r.method === "sendMessage");
+  assert(allMessage);
+  assert.match(String(allMessage.payload.text), /Снова в наличии: XS/);
+  assert.match(String(allMessage.payload.text), /Размер: все размеры/);
+  await callback(`hist:${all[0].watch.id}`);
+  await callback(`detail:${all[0].watch.id}`);
+  assert(
+    responses.some((r) =>
+      /Цена: 159,00\szł \(минимальная\)/.test(String(r.payload.text)),
+    ),
+  );
+  await callback(`del:${all[0].watch.id}`);
+  assert.equal((await repo.list(u.id)).length, 0);
   console.log(
     JSON.stringify(
       {
@@ -251,6 +312,7 @@ try {
           "rotated SKU preserves watch/history without false alerts",
           "unrelated SKU remains unknown",
           "cancel suppresses pending notifications",
+          "all-sizes watch: single row, combined notification, history, remove",
         ],
         telegramCalls: responses.length,
       },

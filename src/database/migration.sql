@@ -11,3 +11,6 @@ CREATE INDEX IF NOT EXISTS enabled_product_watches ON watches(product_id,enabled
 CREATE INDEX IF NOT EXISTS history_variant ON price_history(variant_id,created_at);
 CREATE INDEX IF NOT EXISTS pending_notifications ON notification_outbox(sent_at,next_attempt_at);
 ALTER TABLE variants ADD COLUMN IF NOT EXISTS selectable BOOLEAN NOT NULL DEFAULT true;
+-- variant_id NULL = watch on every size of the product.
+ALTER TABLE watches ALTER COLUMN variant_id DROP NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS watch_all_sizes ON watches(user_id,product_id) WHERE variant_id IS NULL;

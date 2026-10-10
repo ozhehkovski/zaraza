@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 export const users = pgTable("users", {
   id: serial().primaryKey(),
   telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(),
@@ -62,9 +63,8 @@ export const watches = pgTable(
     productId: integer("product_id")
       .notNull()
       .references(() => products.id),
-    variantId: integer("variant_id")
-      .notNull()
-      .references(() => variants.id),
+    // null = all sizes of the product
+    variantId: integer("variant_id").references(() => variants.id),
     watchPrice: boolean("watch_price").notNull(),
     watchStock: boolean("watch_stock").notNull(),
     targetPrice: integer("target_price"),
@@ -74,6 +74,9 @@ export const watches = pgTable(
   },
   (t) => [
     uniqueIndex("watch_identity").on(t.userId, t.variantId),
+    uniqueIndex("watch_all_sizes")
+      .on(t.userId, t.productId)
+      .where(sql`variant_id is null`),
     index("enabled_product_watches").on(t.productId, t.enabled),
   ],
 );

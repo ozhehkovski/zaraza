@@ -2,8 +2,21 @@ import { and, eq, lte, sql, desc, isNull } from "drizzle-orm";
 import type { Database } from "./client.js";
 import * as s from "./schema.js";
 import type { Product } from "../providers/types.js";
-import { events } from "../monitor/rules.js";
+import { allSizesEvents, events, type SizeChange } from "../monitor/rules.js";
 import { resolveVariants } from "./variant-identity.js";
+export const ALL_SIZES = "все размеры";
+type WatchRow = {
+  watch: typeof s.watches.$inferSelect;
+  product: typeof s.products.$inferSelect;
+  variant: typeof s.variants.$inferSelect | null;
+  state: { price: number; available: boolean; checkedAt: Date } | null;
+};
+export type WatchView = WatchRow & {
+  state: { price: number; available: boolean; checkedAt: Date };
+  size: string;
+  /** Available sizes for an all-sizes watch, null for a single-size watch. */
+  availableSizes: string[] | null;
+};
 export class Repository {
   constructor(public db: Database) {}
   async user(telegramId: number) {
@@ -150,59 +163,90 @@ export class Repository {
     },
   ) {
     const d = await this.draft(userId);
-    if (!d?.variantId) throw new Error("Wybór wygasł. Wyślij link ponownie.");
-    await this.db
-      .insert(s.watches)
-      .values({
-        userId,
-        productId: d.productId,
-        variantId: d.variantId,
-        ...rule,
-      })
-      .onConflictDoUpdate({
-        target: [s.watches.userId, s.watches.variantId],
-        set: { ...rule, enabled: true, updatedAt: new Date() },
-      });
+    if (!d || d.stage === "size")
+      throw new Error("Выбор устарел. Отправьте ссылку ещё раз.");
+    const set = { ...rule, enabled: true, updatedAt: new Date() };
+    const insert = this.db.insert(s.watches).values({
+      userId,
+      productId: d.productId,
+      variantId: d.variantId,
+      ...rule,
+    });
+    await (d.variantId
+      ? insert.onConflictDoUpdate({
+          target: [s.watches.userId, s.watches.variantId],
+          set,
+        })
+      : insert.onConflictDoUpdate({
+          target: [s.watches.userId, s.watches.productId],
+          targetWhere: sql`variant_id is null`,
+          set,
+        }));
     await this.db.delete(s.drafts).where(eq(s.drafts.userId, userId));
   }
-  async list(userId: number, offset = 0) {
+  private watchRows() {
     return this.db
       .select({
         watch: s.watches,
         product: s.products,
         variant: s.variants,
-        state: s.states,
+        state: {
+          price: s.states.price,
+          available: s.states.available,
+          checkedAt: s.states.checkedAt,
+        },
       })
       .from(s.watches)
       .innerJoin(s.products, eq(s.products.id, s.watches.productId))
-      .innerJoin(s.variants, eq(s.variants.id, s.watches.variantId))
-      .innerJoin(s.states, eq(s.states.variantId, s.variants.id))
+      .leftJoin(s.variants, eq(s.variants.id, s.watches.variantId))
+      .leftJoin(s.states, eq(s.states.variantId, s.variants.id));
+  }
+  /** Single-size watches use their own state; all-sizes watches aggregate every size. */
+  private async view(row: WatchRow): Promise<WatchView | null> {
+    if (row.variant) {
+      if (!row.state) return null;
+      return {
+        ...row,
+        state: row.state,
+        size: row.variant.size,
+        availableSizes: null,
+      };
+    }
+    const sizes = await this.sizes(row.product.id);
+    if (!sizes.length) return null;
+    return {
+      ...row,
+      state: {
+        price: Math.min(...sizes.map((r) => r.state.price)),
+        available: sizes.some((r) => r.state.available),
+        checkedAt: new Date(
+          Math.max(...sizes.map((r) => r.state.checkedAt.getTime())),
+        ),
+      },
+      size: ALL_SIZES,
+      availableSizes: sizes
+        .filter((r) => r.state.available)
+        .map((r) => r.variant.size),
+    };
+  }
+  async list(userId: number, offset = 0) {
+    const rows = await this.watchRows()
       .where(and(eq(s.watches.userId, userId), eq(s.watches.enabled, true)))
       .orderBy(s.watches.id)
       .limit(11)
       .offset(offset);
+    const views = await Promise.all(rows.map((r) => this.view(r)));
+    return views.filter((v): v is WatchView => v !== null);
   }
   async detail(userId: number, id: number) {
-    return (
-      await this.db
-        .select({
-          watch: s.watches,
-          product: s.products,
-          variant: s.variants,
-          state: s.states,
-        })
-        .from(s.watches)
-        .innerJoin(s.products, eq(s.products.id, s.watches.productId))
-        .innerJoin(s.variants, eq(s.variants.id, s.watches.variantId))
-        .innerJoin(s.states, eq(s.states.variantId, s.variants.id))
-        .where(
-          and(
-            eq(s.watches.userId, userId),
-            eq(s.watches.id, id),
-            eq(s.watches.enabled, true),
-          ),
-        )
-    )[0];
+    const [row] = await this.watchRows().where(
+      and(
+        eq(s.watches.userId, userId),
+        eq(s.watches.id, id),
+        eq(s.watches.enabled, true),
+      ),
+    );
+    return row ? ((await this.view(row)) ?? undefined) : undefined;
   }
   async remove(userId: number, id: number) {
     await this.db
@@ -212,17 +256,26 @@ export class Repository {
   }
   async priceHistory(userId: number, id: number) {
     const w = await this.detail(userId, id);
-    if (!w) throw new Error("Nie znaleziono obserwacji.");
+    if (!w) throw new Error("Подписка не найдена.");
+    const scope = w.variant
+      ? eq(s.history.variantId, w.variant.id)
+      : eq(s.history.productId, w.product.id);
     const rows = await this.db
-      .select()
+      .select({
+        price: s.history.price,
+        available: s.history.available,
+        createdAt: s.history.createdAt,
+        size: s.variants.size,
+      })
       .from(s.history)
-      .where(eq(s.history.variantId, w.variant.id))
-      .orderBy(desc(s.history.createdAt))
+      .innerJoin(s.variants, eq(s.variants.id, s.history.variantId))
+      .where(scope)
+      .orderBy(desc(s.history.createdAt), desc(s.history.id))
       .limit(30);
     const [min] = await this.db
       .select({ price: sql<number>`min(${s.history.price})` })
       .from(s.history)
-      .where(eq(s.history.variantId, w.variant.id));
+      .where(scope);
     return { w, rows, min: Number(min.price) };
   }
   async due() {
@@ -258,8 +311,9 @@ export class Repository {
         .select({ watch: s.watches, user: s.users, variant: s.variants })
         .from(s.watches)
         .innerJoin(s.users, eq(s.users.id, s.watches.userId))
-        .innerJoin(s.variants, eq(s.variants.id, s.watches.variantId))
+        .leftJoin(s.variants, eq(s.variants.id, s.watches.variantId))
         .where(and(eq(s.watches.productId, id), eq(s.watches.enabled, true)));
+      const changes: SizeChange[] = [];
       const previous = await tx
         .select()
         .from(s.states)
@@ -302,7 +356,17 @@ export class Repository {
           await tx
             .insert(s.history)
             .values({ productId: id, variantId: variant.id, ...now });
-        for (const row of observed.filter((r) => r.variant.id === variant.id)) {
+        if (v.selectable)
+          changes.push({
+            size: v.size,
+            previous: before
+              ? { price: before.price, available: before.available }
+              : undefined,
+            current: now,
+          });
+        for (const row of observed.filter(
+          (r) => r.variant?.id === variant.id,
+        )) {
           const types = events(before, now, row.watch);
           if (types.length)
             await tx.insert(s.outbox).values({
@@ -340,9 +404,27 @@ export class Repository {
             },
           });
       }
+      for (const row of observed.filter((r) => !r.variant)) {
+        const e = allSizesEvents(changes, row.watch);
+        if (e)
+          await tx.insert(s.outbox).values({
+            watchId: row.watch.id,
+            payload: {
+              ...e,
+              telegramId: row.user.telegramId,
+              name: product.name,
+              url: product.url,
+              currency: product.currency,
+              size: ALL_SIZES,
+              watchId: row.watch.id,
+            },
+          });
+      }
       // Missing watched SKUs are unknown, never silently converted to out-of-stock.
       const missing = observed.some(
-        (r) => !resolved.some((v) => v.id === r.variant.externalVariantId),
+        (r) =>
+          r.variant &&
+          !resolved.some((v) => v.id === r.variant!.externalVariantId),
       );
       await tx
         .update(s.products)

@@ -40,7 +40,7 @@ export class ProviderRegistry {
   forUrl(url: string) {
     const p = this.providers.find((p) => p.canHandle(url));
     if (!p)
-      throw new Error("Obsługujemy wyłącznie linki produktów Zara Polska.");
+      throw new Error("Поддерживаются только ссылки на товары Zara Польша.");
     return p;
   }
   forStore(store: string) {

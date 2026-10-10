@@ -58,12 +58,12 @@ await bot.api.setMyCommands(
     command,
     description: (
       {
-        start: "Start",
-        help: "Pomoc",
-        watch: "Dodaj produkt",
-        list: "Obserwowane produkty",
-        history: "Historia ceny",
-        settings: "Ustawienia",
+        start: "Начать",
+        help: "Помощь",
+        watch: "Добавить товар",
+        list: "Отслеживаемые товары",
+        history: "История цены",
+        settings: "Настройки",
       } as Record<string, string>
     )[command],
   })),
