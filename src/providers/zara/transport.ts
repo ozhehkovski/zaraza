@@ -10,6 +10,10 @@ export type TransportOptions = {
   timeout: number;
   rps: number;
   browserPages?: number;
+  /** Close a tab after this many navigations (frees bfcache/history/renderer heap). */
+  pageMaxUses?: number;
+  /** Restart Chromium after this many navigations (frees everything else). */
+  browserMaxNavigations?: number;
 };
 export class ZaraTransport {
   private context?: BrowserContext;
@@ -22,20 +26,87 @@ export class ZaraTransport {
   private idlePages: Page[] = [];
   private activePages = 0;
   private pageWaiters: (() => void)[] = [];
+  // Chromium memory grows with every navigation of a long-lived tab/browser,
+  // so tabs and the whole browser are rotated after a fixed amount of work.
+  private pageUses = new WeakMap<Page, number>();
+  private navigations = new WeakMap<BrowserContext, number>();
+  private leases = new Map<BrowserContext, number>();
+  private retired = new WeakSet<BrowserContext>();
   private async acquirePage() {
     const limit = this.options.browserPages ?? 2;
     if (this.activePages >= limit)
       await new Promise<void>((resolve) => this.pageWaiters.push(resolve));
     else this.activePages++;
     const context = await this.browser(false);
-    this.idlePages = this.idlePages.filter((p) => !p.isClosed());
-    return this.idlePages.pop() ?? (await context.newPage());
+    this.lease(context);
+    try {
+      this.idlePages = this.idlePages.filter((p) => !p.isClosed());
+      const page = this.idlePages.pop() ?? (await context.newPage());
+      const count = (this.navigations.get(context) ?? 0) + 1;
+      this.navigations.set(context, count);
+      if (count >= (this.options.browserMaxNavigations ?? 300))
+        this.retire(context);
+      return page;
+    } catch (error) {
+      this.unlease(context);
+      throw error;
+    }
   }
   private releasePage(page?: Page) {
-    if (page && !page.isClosed()) this.idlePages.push(page);
+    if (page) {
+      const context = page.context();
+      const uses = (this.pageUses.get(page) ?? 0) + 1;
+      this.pageUses.set(page, uses);
+      if (page.isClosed()) {
+        // already gone (browser crash/close)
+      } else if (
+        this.retired.has(context) ||
+        context !== this.context ||
+        uses >= (this.options.pageMaxUses ?? 25)
+      )
+        this.closeQuietly(page.close(), "page close failed");
+      else this.idlePages.push(page);
+      this.unlease(context);
+    }
     const next = this.pageWaiters.shift();
     if (next) next();
     else this.activePages--;
+  }
+  private lease(context: BrowserContext) {
+    this.leases.set(context, (this.leases.get(context) ?? 0) + 1);
+  }
+  private unlease(context: BrowserContext) {
+    const left = (this.leases.get(context) ?? 1) - 1;
+    if (left > 0) {
+      this.leases.set(context, left);
+      return;
+    }
+    this.leases.delete(context);
+    if (this.retired.has(context)) this.closeBrowser(context);
+  }
+  /** Stop handing out this browser; close it once in-flight requests finish. */
+  private retire(context: BrowserContext) {
+    if (this.retired.has(context)) return;
+    this.retired.add(context);
+    if (this.context === context) {
+      this.context = undefined;
+      this.page = undefined;
+      for (const p of this.idlePages)
+        this.closeQuietly(p.close(), "page close failed");
+      this.idlePages = [];
+    }
+    log.info({ store: "zara" }, "recycling browser");
+    if (!this.leases.has(context)) this.closeBrowser(context);
+  }
+  private closeBrowser(context: BrowserContext) {
+    const browser = context.browser();
+    this.closeQuietly(
+      browser ? browser.close() : context.close(),
+      "browser close failed",
+    );
+  }
+  private closeQuietly(task: Promise<unknown>, message: string) {
+    task.catch((e) => log.warn({ error: safeError(e) }, message));
   }
   private lastSuccessAt: Date | null = null;
   private lastError: string | null = null;
@@ -178,22 +249,27 @@ export class ZaraTransport {
               this.releasePage(page);
             }
           } else {
-            await this.browser();
-            const response = await this.page!.evaluate(
-              async ({ url, timeout }) => {
-                const response = await fetch(url, {
-                  credentials: "include",
-                  signal: AbortSignal.timeout(timeout),
-                  headers: { accept: "application/json" },
-                });
-                return {
-                  status: response.status,
-                  retryAfter: response.headers.get("retry-after"),
-                  body: await response.text(),
-                };
-              },
-              { url, timeout: this.options.timeout },
-            );
+            const context = await this.browser();
+            const page = this.page;
+            if (!page) throw new Error("Zara browser page is not ready");
+            this.lease(context);
+            const response = await page
+              .evaluate(
+                async ({ url, timeout }) => {
+                  const response = await fetch(url, {
+                    credentials: "include",
+                    signal: AbortSignal.timeout(timeout),
+                    headers: { accept: "application/json" },
+                  });
+                  return {
+                    status: response.status,
+                    retryAfter: response.headers.get("retry-after"),
+                    body: await response.text(),
+                  };
+                },
+                { url, timeout: this.options.timeout },
+              )
+              .finally(() => this.unlease(context));
             status = response.status;
             retryAfter = response.retryAfter;
             body = response.body;
@@ -296,7 +372,10 @@ export class ZaraTransport {
     }
   }
   async close() {
-    await this.context?.browser()?.close();
+    const context = this.context;
+    if (context) this.retired.add(context);
+    this.context = undefined;
+    await context?.browser()?.close();
     await this.dispatcher.close();
   }
 }
