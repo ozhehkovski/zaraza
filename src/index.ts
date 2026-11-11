@@ -36,6 +36,8 @@ const transport = new ZaraTransport({
   timeout: config.REQUEST_TIMEOUT_MS,
   rps: config.ZARA_REQUESTS_PER_SECOND,
   browserPages: config.ZARA_MAX_BROWSER_PAGES,
+  pageMaxUses: config.ZARA_BROWSER_PAGE_MAX_USES,
+  browserMaxNavigations: config.ZARA_BROWSER_MAX_NAVIGATIONS,
 });
 const registry = new ProviderRegistry([
   new ZaraProvider(transport, config.ZARA_DATA_SOURCE),

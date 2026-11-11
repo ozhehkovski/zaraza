@@ -9,6 +9,8 @@ const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   ZARA_TRANSPORT: z.enum(["http", "browser"]).default("http"),
   ZARA_MAX_BROWSER_PAGES: z.coerce.number().int().min(1).max(10).default(2),
+  ZARA_BROWSER_PAGE_MAX_USES: z.coerce.number().int().min(1).default(25),
+  ZARA_BROWSER_MAX_NAVIGATIONS: z.coerce.number().int().min(1).default(300),
   ZARA_DATA_SOURCE: z.enum(["api", "page"]).default("page"),
   ZARA_COOKIE: z.string().default(""),
   ZARA_PROXY_URL: z.string().default(""),
